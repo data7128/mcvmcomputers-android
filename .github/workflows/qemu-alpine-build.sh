@@ -12,7 +12,7 @@
 set -e
 
 apk add --no-cache \
-  build-base pkgconfig python3 ninja bison flex perl gettext \
+  build-base pkgconfig python3 ninja bison flex perl gettext git \
   glib-dev glib-static pixman-dev pixman-static zlib-dev zlib-static \
   libffi-dev pcre2-dev linux-headers
 
