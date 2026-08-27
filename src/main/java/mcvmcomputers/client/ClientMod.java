@@ -73,6 +73,8 @@ public class ClientMod implements ClientModInitializer{
 	public static IVirtualBox vb;
 	
 	public static Process vboxWebSrv;
+	/** QEMU 后端开关：Android/ARM（FCL）环境自动为 true；桌面 x86 保持 false 走 VirtualBox。 */
+	public static boolean useQemuBackend = false;
 	public static Thread vmUpdateThread;
 	public static byte[] vmTextureBytes;
 	public static int vmTextureBytesSize;

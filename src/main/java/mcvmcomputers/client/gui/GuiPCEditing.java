@@ -28,6 +28,7 @@ import mcvmcomputers.item.ItemHarddrive;
 import mcvmcomputers.item.ItemList;
 import mcvmcomputers.networking.PacketList;
 import mcvmcomputers.utils.MVCUtils;
+import mcvmcomputers.vm.QemuBackend;
 import net.fabricmc.fabric.api.network.ClientSidePacketRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
@@ -507,6 +508,12 @@ public class GuiPCEditing extends Screen{
 	}
 	
 	private void removeISO() {
+		if(ClientMod.useQemuBackend) {
+			PacketByteBuf b = new PacketByteBuf(Unpooled.buffer());
+			b.writeInt(this.pc_case.getEntityId());
+			ClientSidePacketRegistry.INSTANCE.sendToServer(PacketList.C2S_REMOVE_ISO, b);
+			return;
+		}
 		if((ClientMod.vmTurningOn || ClientMod.vmTurnedOn) && ClientMod.vmEntityID == pc_case.getEntityId()) {
 			try {
 				ClientMod.vmSession.getMachine().unmountMedium("IDE Controller", 1, 0, true);
@@ -518,6 +525,17 @@ public class GuiPCEditing extends Screen{
 	}
 	
 	private void insertISO(String name) {
+		if(ClientMod.useQemuBackend) {
+			// QEMU：ISO 在 startVm 时通过 -cdrom 挂载，运行中修改需重启生效
+			if(ClientMod.vmTurnedOn && ClientMod.vmEntityID == pc_case.getEntityId()) {
+				minecraft.player.sendMessage(new TranslatableText("mcvmcomputers.iso_restart_needed").formatted(Formatting.YELLOW), false);
+			}
+			PacketByteBuf b = new PacketByteBuf(Unpooled.buffer());
+			b.writeString(name);
+			b.writeInt(this.pc_case.getEntityId());
+			ClientSidePacketRegistry.INSTANCE.sendToServer(PacketList.C2S_ADD_ISO, b);
+			return;
+		}
 		if(ClientMod.vmTurnedOn && ClientMod.vmEntityID == pc_case.getEntityId()) {
 			IMedium m = ClientMod.vb.openMedium(new File(ClientMod.isoDirectory, name).getPath(), DeviceType.DVD, AccessMode.ReadOnly, true);
 			ClientMod.vmSession.getMachine().mountMedium("IDE Controller", 1, 0, m, true);
@@ -539,6 +557,24 @@ public class GuiPCEditing extends Screen{
 	}
 	
 	public void turnOffPC(ButtonWidget wdgt) {
+		if(ClientMod.useQemuBackend) {
+			ClientMod.vmTurningOff = true;
+			ClientMod.vmTurnedOn = false;
+			PacketByteBuf b = new PacketByteBuf(Unpooled.buffer());
+			ClientSidePacketRegistry.INSTANCE.sendToServer(PacketList.C2S_TURN_OFF_PC, b);
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					while(ClientMod.vmTurningOn) {}
+					QemuBackend.get().stopVm();
+					ClientMod.vmSession = null;
+					ClientMod.vmTurnedOn = false;
+					ClientMod.vmTurningOff = false;
+					ClientMod.vmEntityID = -1;
+				}
+			}, "Turn off QEMU PC").start();
+			return;
+		}
 		ClientMod.vmTurningOff = true;
 		ClientMod.vmTurnedOn = false;
 		PacketByteBuf b = new PacketByteBuf(Unpooled.buffer());
@@ -580,6 +616,44 @@ public class GuiPCEditing extends Screen{
 			if(ClientMod.vmTurningOn || ClientMod.vmTurnedOn) {
 				return;
 			}
+
+			if(ClientMod.useQemuBackend) {
+				ClientMod.vmTurningOn = true;
+				ClientMod.vmEntityID = pc_case.getEntityId();
+				PacketByteBuf b = new PacketByteBuf(Unpooled.buffer());
+				b.writeInt(pc_case.getEntityId());
+				ClientSidePacketRegistry.INSTANCE.sendToServer(PacketList.C2S_TURN_ON_PC, b);
+				new Thread(new Runnable() {
+					@Override
+					public void run() {
+						try {
+							File hdd = pc_case.getHardDriveFileName().isEmpty() ? null
+									: new File(ClientMod.vhdDirectory, pc_case.getHardDriveFileName());
+							File iso = pc_case.getIsoFileName().isEmpty() ? null
+									: new File(ClientMod.isoDirectory, pc_case.getIsoFileName());
+							int ramMb = (int) Math.min(ClientMod.maxRam,
+									pc_case.getGigsOfRamInSlot0() + pc_case.getGigsOfRamInSlot1());
+							int cpuCount = Math.max(1,
+									Runtime.getRuntime().availableProcessors() / pc_case.getCpuDividedBy());
+							QemuBackend.get().startVm(ramMb, cpuCount, ClientMod.videoMem, pc_case.get64Bit(), hdd, iso);
+							ClientMod.vmTurnedOn = true;
+						} catch (Exception ex) {
+							ex.printStackTrace();
+							minecraft.player.sendMessage(new TranslatableText("mcvmcomputers.failed_to_start", ex.getMessage()).formatted(Formatting.RED), false);
+							PacketByteBuf b2 = new PacketByteBuf(Unpooled.buffer());
+							ClientSidePacketRegistry.INSTANCE.sendToServer(PacketList.C2S_TURN_OFF_PC, b2);
+							ClientMod.vmTurnedOn = false;
+						} finally {
+							ClientMod.vmTurningOn = false;
+						}
+						synchronized (vmTurningON) {
+							vmTurningON.notify();
+						}
+					}
+				}, "Turn on QEMU PC").start();
+				return;
+			}
+
 			ClientMod.vmTurningOn = true;
 			ClientMod.vmEntityID = pc_case.getEntityId();
 			PacketByteBuf b = new PacketByteBuf(Unpooled.buffer());

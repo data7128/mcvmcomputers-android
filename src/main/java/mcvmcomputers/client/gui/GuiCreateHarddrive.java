@@ -17,6 +17,7 @@ import io.netty.buffer.Unpooled;
 import mcvmcomputers.client.ClientMod;
 import mcvmcomputers.networking.PacketList;
 import mcvmcomputers.utils.MVCUtils;
+import mcvmcomputers.vm.QemuBackend;
 import net.fabricmc.fabric.api.network.ClientSidePacketRegistry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
@@ -139,6 +140,31 @@ public class GuiCreateHarddrive extends Screen{
 			Long size = Long.parseLong(hddSize.getText())*1024L*1024L;
 			int i = ClientMod.latestVHDNum;
 			File vhd = new File(ClientMod.vhdDirectory, "vhd" + i + "."+extension);
+
+			if(ClientMod.useQemuBackend) {
+				// QEMU 后端：统一使用 qcow2，通过内置 qemu-img 创建
+				String qname = "vhd" + i + ".qcow2";
+				File qvhd = new File(ClientMod.vhdDirectory, qname);
+				try {
+					Process p = new ProcessBuilder(
+							QemuBackend.get().getQemuImgBinary().getAbsolutePath(),
+							"create", "-f", "qcow2", qvhd.getAbsolutePath(), String.valueOf(size))
+							.redirectErrorStream(true).start();
+					int exit = p.waitFor();
+					if(exit != 0) {
+						System.err.println("[vmcomputers] qemu-img create failed exit=" + exit);
+					}
+					ClientMod.increaseVHDNum();
+					PacketByteBuf pb = new PacketByteBuf(Unpooled.buffer());
+					pb.writeString(qvhd.getName());
+					ClientSidePacketRegistry.INSTANCE.sendToServer(PacketList.C2S_CHANGE_HDD, pb);
+					minecraft.openScreen(null);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				return;
+			}
+
 			IMedium hdd = null;
 			if(extension == Ext.vdi){
 				hdd = ClientMod.vb.createMedium("vdi", vhd.getPath(), AccessMode.ReadWrite, DeviceType.HardDisk);

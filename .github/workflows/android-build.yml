@@ -1,0 +1,109 @@
+# VM-Computers Android (QEMU) 构建工作流
+#
+# 产物：
+#   - mcvmcomputers-android-arm64.jar（FCL 可直接放入 mods 文件夹的 mod）
+#     内含 assets/qemu/qemu-system-x86_64 与 assets/qemu/qemu-img（aarch64-android 静态二进制）
+#
+# 触发：push 到 android-qemu-arm64 分支，或手动 workflow_dispatch
+
+name: Android ARM64 QEMU Build
+
+on:
+  push:
+    branches: [ android-qemu-arm64 ]
+  workflow_dispatch:
+
+jobs:
+  build-qemu:
+    name: Cross-compile QEMU for Android ARM64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config libglib2.0-dev libpixman-1-dev
+          # 定位 NDK 工具链
+          echo "NDK=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+
+      - name: Download & configure QEMU
+        run: |
+          curl -L -o qemu.tar.xz https://download.qemu.org/qemu-8.2.4.tar.xz
+          tar -xf qemu.tar.xz
+          cd qemu-8.2.4
+          export CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+          export CXX="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
+          export AR="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          export RANLIB="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib"
+          export STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          export CROSS_PREFIX=aarch64-linux-android-
+          ./configure \
+            --target-list=x86_64-softmmu \
+            --static \
+            --disable-sdl --disable-gtk --disable-curses \
+            --enable-vnc \
+            --disable-tools --disable-docs --disable-gnutls \
+            --disable-nettle --disable-vde --disable-netmap \
+            --disable-linux-aio --disable-cap-ng --disable-vhost-net \
+            --disable-vhost-user --disable-vhost-crypto --disable-vhost-kernel \
+            --disable-pie --disable-werror \
+            --cross-prefix=aarch64-linux-android-
+          make -j$(nproc)
+
+      - name: Upload QEMU binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-android-arm64
+          path: |
+            qemu-8.2.4/build/x86_64-softmmu/qemu-system-x86_64
+            qemu-8.2.4/build/qemu-img
+
+  build-mod:
+    name: Build Fabric mod jar (with bundled QEMU)
+    needs: build-qemu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Download QEMU binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: qemu-android-arm64
+          path: qemu-bin
+
+      - name: Bundle QEMU into mod resources
+        run: |
+          mkdir -p src/main/resources/assets/qemu
+          cp qemu-bin/qemu-system-x86_64 src/main/resources/assets/qemu/qemu-system-x86_64
+          cp qemu-bin/qemu-img src/main/resources/assets/qemu/qemu-img
+          chmod +x src/main/resources/assets/qemu/*
+          ls -lh src/main/resources/assets/qemu/
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Upload mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcvmcomputers-android-arm64
+          path: build/libs/*.jar
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/libs/*.jar
+          fail_on_unmatched_files: true

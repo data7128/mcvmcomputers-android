@@ -14,6 +14,7 @@ import com.google.gson.Gson;
 import mcvmcomputers.client.ClientMod;
 import mcvmcomputers.client.gui.setup.GuiSetup;
 import mcvmcomputers.client.utils.VMSettings;
+import mcvmcomputers.vm.QemuBackend;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -73,7 +74,76 @@ public class SetupPageMaxValues extends SetupPage{
 		if(ClientMod.vboxWebSrv != null) {
 			ClientMod.vboxWebSrv.destroy();
 		}
-		
+
+		if(ClientMod.useQemuBackend) {
+			// ---- QEMU 后端分支：无需 vboxwebsrv / VirtualBoxManager ----
+			if(!QemuBackend.get().isAvailable()) {
+				QemuBackend.get().init(minecraft.runDirectory);
+			}
+			boolean[] bools = new boolean[] {checkMaxRam(maxRam.getText()), videoMemory(videoMemory.getText())};
+			for(boolean b : bools) {
+				if(!b) {
+					return;
+				}
+			}
+			ClientMod.maxRam = Integer.parseInt(maxRam.getText());
+			ClientMod.videoMem = Integer.parseInt(videoMemory.getText());
+			this.setupGui.clearElements();
+			this.setupGui.clearButtons();
+			onlyStatusMessage = true;
+			status = setupGui.translation("mcvmcomputers.setup.startingStatus");
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						if(!QemuBackend.get().isAvailable()) {
+							throw new IOException("QEMU binaries unavailable in " + minecraft.runDirectory);
+						}
+						VMSettings set = new VMSettings();
+						set.vmComputersDirectory = ClientMod.vhdDirectory.getParentFile().getAbsolutePath();
+						set.unfocusKey1 = ClientMod.glfwUnfocusKey1;
+						set.unfocusKey2 = ClientMod.glfwUnfocusKey2;
+						set.unfocusKey3 = ClientMod.glfwUnfocusKey3;
+						set.unfocusKey4 = ClientMod.glfwUnfocusKey4;
+						set.maxRam = ClientMod.maxRam;
+						set.videoMem = ClientMod.videoMem;
+						File f = new File(minecraft.runDirectory, "vm_computers/setup.json");
+						if(f.exists()) {
+							f.delete();
+						}
+						f.createNewFile();
+						FileWriter fw = new FileWriter(f);
+						fw.append(new Gson().toJson(set));
+						fw.flush();
+						fw.close();
+						for(int i = 5;i>=0;i--) {
+							try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+							status = setupGui.translation("mcvmcomputers.setup.successStatus").replaceFirst("%s", "QEMU").replaceFirst("%s", ""+i);
+						}
+						minecraft.openScreen(new TitleScreen());
+						return;
+					}catch(Exception ex) {
+						ex.printStackTrace();
+						for(int i = 5;i>=0;i--) {
+							try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+							status = setupGui.translation("mcvmcomputers.setup.failedStatus").replace("%s", ""+i);
+						}
+						onlyStatusMessage = false;
+						setupGui.firstPage();
+					}
+				}
+			}).start();
+			return;
+		}
+
 		if(SystemUtils.IS_OS_WINDOWS) {
 			ProcessBuilder vboxConfig = new ProcessBuilder(this.setupGui.virtualBoxDirectory + "\\vboxmanage.exe", "setproperty", "websrvauthlibrary", "null");
 			try {

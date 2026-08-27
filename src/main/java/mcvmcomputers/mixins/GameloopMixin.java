@@ -22,10 +22,12 @@ import org.virtualbox_6_1.VBoxException;
 
 import mcvmcomputers.client.gui.setup.GuiSetup;
 import mcvmcomputers.client.tablet.TabletOS;
+import mcvmcomputers.client.utils.QemuVMRunnable;
 import mcvmcomputers.client.utils.VMRunnable;
 import mcvmcomputers.entities.EntityItemPreview;
 import mcvmcomputers.item.ItemList;
 import mcvmcomputers.item.ItemOrderingTablet;
+import mcvmcomputers.vm.QemuBackend;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -69,6 +71,13 @@ public class GameloopMixin {
 		vhdDirectory.mkdirs();
 		isoDirectory = new File(mcc.runDirectory, "vm_computers/isos");
 		isoDirectory.mkdirs();
+
+		// Android/ARM（FCL/PojavLauncher）环境自动启用 QEMU 后端；
+		// 桌面 x86 可用 -Dmcvmcomputers.forceqemu=true 强制走 QEMU 做调试。
+		if(QemuBackend.isAndroidEnv() || Boolean.getBoolean("mcvmcomputers.forceqemu")) {
+			useQemuBackend = true;
+			QemuBackend.get().init(mcc.runDirectory);
+		}
 		
 		File num = new File(vhdDirectory.getParentFile(), "vhdnum");
 		if(num.exists()) {
@@ -124,19 +133,27 @@ public class GameloopMixin {
 		if(vmTurnedOn) {
 			if(player == null) {
 				vmUpdateThread.interrupt();
-				
-				IMachine m = vb.findMachine("VmComputersVm");
-				ISession sess = vbManager.getSessionObject();
-				m.lockMachine(sess, LockType.Shared);
-				IProgress pg = sess.getConsole().powerDown();
-				pg.waitForCompletion(-1);
-				sess.unlockMachine();
+				vmUpdateThread = null;
+				if(useQemuBackend) {
+					QemuBackend.get().stopVm();
+				}else {
+					IMachine m = vb.findMachine("VmComputersVm");
+					ISession sess = vbManager.getSessionObject();
+					m.lockMachine(sess, LockType.Shared);
+					IProgress pg = sess.getConsole().powerDown();
+					pg.waitForCompletion(-1);
+					sess.unlockMachine();
+				}
 				vmTurnedOn = false;
 				vmTurningOff = false;
 				vmTurningOn = false;
 			}else {
 				if(vmUpdateThread == null) {
-					vmUpdateThread = new Thread(new VMRunnable(), "VM Update Thread");
+					if(useQemuBackend) {
+						vmUpdateThread = new Thread(new QemuVMRunnable(), "QEMU VM Update Thread");
+					}else {
+						vmUpdateThread = new Thread(new VMRunnable(), "VM Update Thread");
+					}
 					vmUpdateThread.start();
 				}
 				
@@ -206,7 +223,10 @@ public class GameloopMixin {
 		vmTurnedOn = false;
 		vmTurningOff = false;
 
-		if(vbManager != null) {
+		if(useQemuBackend) {
+			QemuBackend.get().stopVm();
+		}
+		if(vbManager != null && !useQemuBackend) {
 			boolean vmExists = false;
 			IMachine mach = null;
 			try {
@@ -259,7 +279,10 @@ public class GameloopMixin {
 		vmTurnedOn = false;
 		vmTurningOff = false;
 		
-		if(vbManager != null) {
+		if(useQemuBackend) {
+			QemuBackend.get().stopVm();
+		}
+		if(vbManager != null && !useQemuBackend) {
 			boolean vmExists = false;
 			IMachine mach = null;
 			try {

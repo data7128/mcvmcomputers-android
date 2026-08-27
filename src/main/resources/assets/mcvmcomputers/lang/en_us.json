@@ -34,6 +34,7 @@
     "mcvmcomputers.ram_not_present": "You need the sort of RAM you want to add in your Inventory to do that!",
     "mcvmcomputers.hdd_doesnt_exist": "The inserted hard drive does not exist on your computer!",
     "mcvmcomputers.iso_doesnt_exist": "The inserted ISO does not exist on your computer!",
+    "mcvmcomputers.iso_restart_needed": "The ISO change applies after the VM is restarted.",
     "mcvmcomputers.failed_to_start": "Failed to start VM, error: %s",
     "mcvmcomputers.contact_me": "If you can't fix this on your own, contact me on Reddit (u/DeltaTwoForce).",
     "mcvmcomputers.click_with_ingots": "You need to click the chest with ingots in your hand!",

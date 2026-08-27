@@ -34,6 +34,7 @@
     "mcvmcomputers.ram_not_present": "您的物品栏中没有可用的内存条！",
     "mcvmcomputers.hdd_doesnt_exist": "无法从读取您选择的虚拟硬盘文件！",
     "mcvmcomputers.iso_doesnt_exist": "无法从读取您选择的虚拟光盘文件！",
+    "mcvmcomputers.iso_restart_needed": "光盘镜像修改将在虚拟机重启后生效。",
     "mcvmcomputers.failed_to_start": "无法启动虚拟机, 错误︰ %s",
     "mcvmcomputers.contact_me": "如果您无法自行解决这个问题， 请在 Reddit 与我联络 (u/DeltaTwoForce)。",
     "mcvmcomputers.click_with_ingots": "您需要手持铁锭点击储物箱！",
