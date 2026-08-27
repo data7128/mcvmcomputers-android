@@ -130,23 +130,28 @@ chmod +x src/main/resources/assets/qemu/*
 2. 拷入资源 → `./gradlew build`
 3. 上传 mod jar；打 tag 时自动创建 GitHub Release
 
-### 4.3 QEMU 交叉编译要点
+### 4.3 QEMU 交叉编译要点（Alpine arm64 容器，静态 musl）
 ```bash
-export NDK=/path/to/android-ndk-r26
-export CC=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
-export CXX=$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++
-./configure \
-  --target-list=x86_64-softmmu --static \
-  --disable-sdl --disable-gtk --disable-curses --enable-vnc \
-  --disable-tools --disable-docs --disable-gnutls \
-  --disable-nettle --disable-vde --disable-netmap \
-  --disable-linux-aio --disable-cap-ng --disable-vhost-net \
-  --disable-vhost-user --disable-vhost-crypto --disable-vhost-kernel \
-  --disable-pie --disable-werror \
-  --cross-prefix=aarch64-linux-android-
+# 与 CI 完全一致的一键构建：
+./scripts/build_qemu_android.sh 8.2.4
+# 等价容器命令（详见 .github/workflows/qemu-alpine-build.sh）：
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+docker run --rm --platform linux/arm64 \
+  -v "$PWD":/build -e QEMU_VERSION=8.2.4 \
+  alpine:3.20 /bin/sh /build/.github/workflows/qemu-alpine-build.sh
+```
+容器内用 Alpine 的 `glib-static / pixman-static / zlib-static` 静态链接：
+```
+./configure --target-list=x86_64-softmmu --static --enable-vnc --enable-tools \
+  --disable-sdl --disable-gtk --disable-curses --disable-docs --disable-gnutls \
+  --disable-nettle --disable-vde --disable-netmap --disable-linux-aio \
+  --disable-cap-ng --disable-vhost-net --disable-vhost-user \
+  --disable-vhost-crypto --disable-vhost-kernel --disable-pie --disable-werror
 make -j$(nproc)
 ```
-> 静态链接 + 只保留 VNC，去掉图形库，二进制体积可控（约 20~40MB）。
+> 为什么不用 NDK/bionic：bionic 交叉构建需补 glib/pixman 交叉依赖和大量 Android libc 兼容补丁
+> （shm_open、timespec_get、sigorset、setjmp、tagged pointers…）。静态 musl 二进制不依赖宿主 libc，
+> 直接规避全部问题，且静态 ELF 在 Android 上可直接执行。
 
 ---
 

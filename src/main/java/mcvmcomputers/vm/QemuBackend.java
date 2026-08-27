@@ -78,11 +78,38 @@ public final class QemuBackend {
             AndroidBinLoader.extractAndChmod("assets/qemu/qemu-img", qemuImgBinary);
         }
         if (!qemuBinary.canExecute() || !qemuImgBinary.canExecute()) {
-            System.err.println("[vmcomputers] qemu binaries not executable: "
-                    + qemuBinary.canExecute() + " " + qemuImgBinary.canExecute());
-            return;
+            // 兜底：Termux 已安装的 qemu（pkg install qemu-system-x86-64-headless qemu-utils）
+            File tq = findTermuxQemu();
+            File ti = findTermuxQemuImg();
+            if (tq != null && ti != null) {
+                System.out.println("[vmcomputers] using Termux qemu: " + tq + " / " + ti);
+                qemuBinary = tq;
+                qemuImgBinary = ti;
+            } else {
+                System.err.println("[vmcomputers] qemu binaries not executable: "
+                        + qemuBinary.canExecute() + " " + qemuImgBinary.canExecute()
+                        + " (install Termux qemu-system-x86-64-headless as fallback)");
+                return;
+            }
         }
         available = true;
+    }
+    private static File findTermuxQemu() {
+        String[] c = {
+                "/data/data/com.termux/files/usr/bin/qemu-system-x86_64",
+                "/data/data/com.termux/files/usr/bin/qemu-system-x86-64-headless",
+        };
+        for (String p : c) {
+            File f = new File(p);
+            if (f.canExecute()) {
+                return f;
+            }
+        }
+        return null;
+    }
+    private static File findTermuxQemuImg() {
+        File f = new File("/data/data/com.termux/files/usr/bin/qemu-img");
+        return f.canExecute() ? f : null;
     }
 
     public void startVm(int ramMb, int cpuCount, int vramMb, boolean x64, File disk, File iso) throws IOException {
