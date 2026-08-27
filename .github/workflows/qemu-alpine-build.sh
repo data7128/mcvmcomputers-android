@@ -13,7 +13,8 @@ set -e
 
 apk add --no-cache \
   build-base pkgconfig python3 ninja bison flex perl gettext \
-  glib-static pixman-static zlib-static libffi-dev linux-headers
+  glib-dev glib-static pixman-dev pixman-static zlib-dev zlib-static \
+  libffi-dev pcre2-dev linux-headers
 
 QEMU_VERSION="${QEMU_VERSION:-8.2.4}"
 OUT=/build
