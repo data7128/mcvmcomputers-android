@@ -1,8 +1,47 @@
-plugins {
-	id 'fabric-loom' version '0.4.33'
-	id 'maven-publish'
-	id 'com.github.johnrengelman.shadow' version '5.2.0'
+buildscript {
+	repositories {
+		maven {
+			name = 'Fabric'
+			url = 'https://maven.fabricmc.net/'
+		}
+		mavenCentral()
+		gradlePluginPortal()
+	}
+	dependencies {
+		classpath 'net.fabricmc:fabric-loom:0.4.33'
+
+		// Force a recent ASM on the buildscript/plugin classpath so that
+		// fabric-loom's stitch (ASM8 api) doesn't hit Gradle 6.3's old ASM 6.2.1
+		// whose ClassVisitor rejects api >= ASM7 with IllegalArgumentException.
+		classpath 'org.ow2.asm:asm:9.5'
+		classpath 'org.ow2.asm:asm-commons:9.5'
+		classpath 'org.ow2.asm:asm-tree:9.5'
+		classpath 'org.ow2.asm:asm-util:9.5'
+	}
+	configurations.all {
+		resolutionStrategy {
+			// Pin org.eclipse.platform:* to 2019-era (JDT 3.15 / Java 8) builds.
+			// JDT core 3.15.0 declares version ranges like [3.13.0,4.0.0), which Gradle
+			// resolves to the newest (2025) jars compiled for Java 17, breaking
+			// Mercury source-remapping when Gradle runs on Java 11.
+			force 'org.eclipse.platform:org.eclipse.core.runtime:3.15.100'
+			force 'org.eclipse.platform:org.eclipse.core.resources:3.13.200'
+			force 'org.eclipse.platform:org.eclipse.core.jobs:3.10.300'
+			force 'org.eclipse.platform:org.eclipse.core.filesystem:1.7.300'
+			force 'org.eclipse.platform:org.eclipse.core.expressions:3.7.0'
+			force 'org.eclipse.platform:org.eclipse.core.commands:3.9.600'
+			force 'org.eclipse.platform:org.eclipse.core.contenttype:3.7.300'
+			force 'org.eclipse.platform:org.eclipse.equinox.common:3.10.300'
+			force 'org.eclipse.platform:org.eclipse.equinox.registry:3.8.100'
+			force 'org.eclipse.platform:org.eclipse.equinox.app:1.4.300'
+			force 'org.eclipse.platform:org.eclipse.equinox.preferences:3.8.100'
+			force 'org.eclipse.platform:org.eclipse.osgi:3.14.0'
+			force 'org.eclipse.platform:org.eclipse.text:3.9.0'
+		}
+	}
 }
+apply plugin: 'fabric-loom'
+apply plugin: 'maven-publish'
 
 sourceCompatibility = JavaVersion.VERSION_1_8
 targetCompatibility = JavaVersion.VERSION_1_8
@@ -21,19 +60,11 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 	 
 	implementation files('lib/vboxjws.jar')
-	shadow files('lib/vboxjws.jar')
+	// Note: shadow plugin was removed for the Android/QEMU port — the QEMU
+	// backend replaces VirtualBox, so vboxjws stays compile-only (not bundled).
 	// PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
 	// You may need to force-disable transitiveness on them.
 }
-
-shadowJar {
-	 configurations = [project.configurations.shadow]
-	 baseName = "${project.archives_base_name}"
-	 classifier = 'dev'
-	 archiveVersion = "${project.mod_version}"
-}
-
-tasks.remapJar.dependsOn shadowJar
 
 processResources {
 	inputs.property "version", project.version
