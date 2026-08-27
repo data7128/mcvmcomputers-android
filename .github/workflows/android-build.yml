@@ -14,17 +14,13 @@ on:
 jobs:
   build-qemu:
     name: Build static QEMU for Android ARM64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
 
-      - name: Register arm64 user-mode emulation (binfmt)
-        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-      - name: Build static QEMU in arm64 Alpine container
+      - name: Build static QEMU in arm64 Alpine container (native arm64)
         run: |
-          docker run --rm --platform linux/arm64 \
-            -v "$PWD":/build \
+          docker run --rm -v "$PWD":/build \
             -e QEMU_VERSION=8.2.4 \
             alpine:3.20 /bin/sh /build/.github/workflows/qemu-alpine-build.sh
 
