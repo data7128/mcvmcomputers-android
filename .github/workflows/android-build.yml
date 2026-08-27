@@ -63,6 +63,12 @@ jobs:
           ls -lh src/main/resources/assets/qemu/
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+      - name: Seed Loom Minecraft manifest cache (avoid flaky launchermeta.mojang.com)
+        run: |
+          mkdir -p ~/.gradle/caches/fabric-loom
+          cp ci/loom-cache/version_manifest.json ~/.gradle/caches/fabric-loom/version_manifest.json
+          cp ci/loom-cache/minecraft-1.16.5-info.json ~/.gradle/caches/fabric-loom/minecraft-1.16.5-info.json
+          ls -l ~/.gradle/caches/fabric-loom/
       - name: Build with Gradle
         run: ./gradlew build
       - name: Upload mod jar
