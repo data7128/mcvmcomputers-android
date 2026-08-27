@@ -83,7 +83,7 @@
 ## 3. 关键实现细节
 
 ### 3.1 为什么画面用 VNC + 自写 PNG 编码器
-- QEMU 用 `-vnc 127.0.0.1:0 -display none` 在本地 5900 端口出画面；
+- QEMU 用 `-vnc 127.0.0.1:0 -display none -net none` 在本地 5900 端口出画面；
 - mod 内部 VNC 客户端请求 Raw 编码帧（强制 32bpp truecolor，内存序 B,G,R,X），
   解码成 RGB 紧凑缓冲；
 - **Android 的 ART 运行时没有 `java.desktop`，`javax.imageio.ImageIO` 不可用**，
@@ -177,7 +177,7 @@ make -j$(nproc)
    `blockdev-change-medium` 实现热插拔。
 4. **多核**：QEMU TCG 多核=多线程翻译，Android 上收益有限且更耗电，
    已限制 `smp` 按 CPU 除以板卡核数。
-5. **快照/网络**：未实现 QEMU 快照与虚拟网卡（`-netdev user` 可后续加，
-   用于让 VM 内系统联网）。
+5. **快照/网络**：未实现 QEMU 快照；默认 `-net none`（省去网卡 ROM 依赖，交互全走 VNC），
+   如需 VM 内联网可后续加 `-netdev user`。
 6. **vboxjws 依赖**：PC 端仍依赖 `lib/vboxjws.jar`（VirtualBox 后端）。
    若未来要彻底去 VB，可加编译开关剔除。

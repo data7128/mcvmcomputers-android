@@ -60,6 +60,8 @@ public final class QemuProcess {
         cmd.add("-display"); cmd.add("none");
         cmd.add("-rtc"); cmd.add("base=localtime");
         cmd.add("-no-reboot");
+        // 不启用客户机网卡：交互完全走 VNC 回环，省掉网卡 ROM/驱动依赖（efi-e1000.rom 等）
+        cmd.add("-net"); cmd.add("none");
 
         if (disk != null) {
             cmd.add("-drive");
