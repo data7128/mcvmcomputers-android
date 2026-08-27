@@ -10,7 +10,7 @@ name: Android ARM64 QEMU Build
 
 on:
   push:
-    branches: [ android-qemu-arm64 ]
+    branches: [ main, android-qemu-arm64 ]
   workflow_dispatch:
 
 jobs:
