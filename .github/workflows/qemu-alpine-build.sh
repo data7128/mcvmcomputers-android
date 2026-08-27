@@ -31,7 +31,6 @@ echo "==> configuring"
   --static \
   --enable-vnc \
   --enable-tools \
-  --disable-tests \
   --disable-sdl --disable-gtk --disable-curses \
   --disable-docs --disable-gnutls \
   --disable-nettle --disable-vde --disable-netmap \
