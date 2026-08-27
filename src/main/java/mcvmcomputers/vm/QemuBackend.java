@@ -91,6 +91,9 @@ public final class QemuBackend {
             throw new IOException("QEMU backend not initialized");
         }
         proc.setBinary(qemuBinary);
+        System.out.println("[vmcomputers] starting QEMU ram=" + ramMb + "MB cpu=" + Math.max(1, cpuCount)
+                + " x64=" + x64 + " hdd=" + (disk == null ? "none" : disk.getAbsolutePath())
+                + " iso=" + (iso == null ? "none" : iso.getAbsolutePath()));
         proc.start(ramMb, Math.max(1, cpuCount), vramMb, x64, disk, iso, 0);
         running = true;
         connected = false;
@@ -169,6 +172,10 @@ public final class QemuBackend {
             // 抓帧：首帧请求全量，之后请求增量；每帧都尝试读取一帧
             vnc.requestFramebufferUpdate(frameReceived);
             if (vnc.readFramebufferUpdate()) {
+                if (!frameReceived) {
+                    System.out.println("[vmcomputers] first frame received "
+                            + vnc.getWidth() + "x" + vnc.getHeight() + " @ " + vnc.getRgbBuffer().length + "B");
+                }
                 frameReceived = true;
                 byte[] png = PngEncoder.encodeRGB(vnc.getRgbBuffer(), vnc.getWidth(), vnc.getHeight());
                 synchronized (this) {
@@ -220,6 +227,7 @@ public final class QemuBackend {
             if (c.isConnected()) {
                 vnc = c;
                 connected = true;
+                System.out.println("[vmcomputers] VNC connected: " + c.getWidth() + "x" + c.getHeight());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
