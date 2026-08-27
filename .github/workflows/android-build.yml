@@ -70,7 +70,7 @@ jobs:
           cp ci/loom-cache/minecraft-1.16.5-info.json ~/.gradle/caches/fabric-loom/minecraft-1.16.5-info.json
           ls -l ~/.gradle/caches/fabric-loom/
       - name: Build with Gradle
-        run: ./gradlew build
+        run: ./gradlew build --stacktrace
       - name: Upload mod jar
         uses: actions/upload-artifact@v4
         with:
